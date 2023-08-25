@@ -1,0 +1,145 @@
+/*
+Covid 19 Data Exploration USING SQL
+
+Skills used: Joins, CTE's, Temp Tables, Windows Functions, Aggregate Functions, Creating Views, Converting Data Types
+
+*/
+
+
+SELECT *
+ FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ Where continent is not null 
+order by 3,4
+
+-- Select Data that we are going to be starting with
+
+Select Location, date, total_cases, new_cases, total_deaths, population
+ FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ Where continent is not null 
+order by 1,2
+
+-- Total Cases vs Total Deaths
+-- Shows likelihood of dying if you contract covid in your country
+
+Select Location, date, total_cases,total_deaths, (total_deaths/total_cases)*100 as DeathPercentage
+FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ --Where Location LIKE '%Nigeria%'
+ WHERE continent is not null 
+order by 1,2
+
+-- Total Cases vs Population
+-- Shows what percentage of population infected with Covid
+
+Select Location, date, Population, total_cases,  (total_cases/population)*100 as PercentPopulationInfected
+FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ --Where Location LIKE '%Nigeria%'
+order by 1,2
+
+-- Countries with Highest Infection Rate compared to Population
+
+Select Location, Population, MAX(total_cases) as HighestInfectionCount,  Max((total_cases/population))*100 as PercentPopulationInfected
+FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ --Where Location LIKE '%Nigeria%'
+Group by Location, Population
+order by PercentPopulationInfected desc
+
+
+-- Countries with Highest Death Count per Population
+
+Select Location, MAX(cast(Total_deaths as int)) as TotalDeathCount
+FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ --Where Location LIKE '%Nigeria%'
+Where continent is not null 
+Group by Location
+order by TotalDeathCount desc
+
+
+-- BREAKING THINGS DOWN BY CONTINENT
+
+-- Showing contintents with the highest death count per population
+
+Select continent, MAX(cast(Total_deaths as int)) as TotalDeathCount
+FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ --Where Location LIKE '%Nigeria%'
+ Where continent is not null 
+Group by continent
+order by TotalDeathCount desc
+
+
+-- GLOBAL NUMBERS
+
+Select SUM(new_cases) as total_cases, SUM(cast(new_deaths as int)) as total_deaths, SUM(cast(new_deaths as int))/SUM(New_Cases)*100 as DeathPercentage
+FROM `my-data-project-57946.CovidProject.CovidDeath` 
+ --Where Location LIKE '%Nigeria%'
+ where continent is not null 
+--Group By date
+order by 1,2
+
+
+-- Total Population vs Vaccinations
+-- Shows Percentage of Population that has recieved at least one Covid Vaccine
+
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, SUM(vac.new_vaccinations) OVER (Partition by dea.Location Order by dea.location, dea.Date) as RollingPeopleVaccinated
+--, (RollingPeopleVaccinated/population)*100
+FROM `my-data-project-57946.CovidProject.CovidDeath` AS dea
+JOIN `my-data-project-57946.CovidProject.CovidVacccination` AS vac
+ON dea.location = vac.location
+	and dea.date = vac.date
+where dea.continent is not null 
+order by 2,3
+
+
+--USING CTE - THE WITH FUNCTION - TO CREATE A TEMP TABLE AND PERFOM CALCULATIONS ON PARTITION
+
+WITH PercentagePopulationVaccinated AS (
+   Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, SUM(vac.new_vaccinations) OVER (Partition by dea.Location Order by dea.location, dea.Date) as RollingPeopleVaccinated
+--, (RollingPeopleVaccinated/population)*100
+FROM `my-data-project-57946.CovidProject.CovidDeath` AS dea
+JOIN `my-data-project-57946.CovidProject.CovidVacccination` AS vac
+ON dea.location = vac.location
+	and dea.date = vac.date
+where dea.continent is not null 
+order by 2,3
+)
+
+Select *, (RollingPeopleVaccinated/Population)*100 PercentVaccinated
+From PercentagePopulationVaccinated
+
+
+##ANALYZING THE RELATIONSHIP BETWEEN COVID DEATH AND VACCINATION
+
+SELECT dea.location, dea.date, dea.total_cases, dea.total_deaths, vac.people_vaccinated, vac.people_fully_vaccinated
+FROM `my-data-project-57946.CovidProject.CovidDeath` AS dea
+JOIN `my-data-project-57946.CovidProject.CovidVacccination` AS vac
+ON dea.location = vac.location
+	and dea.date = vac.date
+where dea.continent is not null 
+order by 2,3
+
+## ANALYZING RELATIONSHIP BETWEEN COVID DEATH AND UNDERLYING HEALTH CONDITION 
+SELECT dea.location, dea.date, dea.total_cases, dea.total_deaths, vac.cardiovasc_death_rate, vac.diabetes_prevalence
+FROM `my-data-project-57946.CovidProject.CovidDeath` AS dea
+JOIN `my-data-project-57946.CovidProject.CovidVacccination` AS vac
+ON dea.location = vac.location
+	and dea.date = vac.date
+where dea.continent is not null 
+order by 2,3
+
+## CALCULATING AVERAGES
+
+SELECT dea.location,dea.date, dea.population, (dea.total_cases/dea.population)*100 as PercentPopulationInfected, (dea.total_deaths/dea.population)*100 AS PercentPopulationDeath,
+       AVG(dea.total_deaths) AS avg_covid_deaths,
+       AVG(dea.total_cases) AS avg_total_cases,
+       AVG(vac.cardiovasc_death_rate) AS avg_cardiovascular_death_rate,
+       AVG(vac.diabetes_prevalence) AS avg_diabetes_prevalence
+FROM `my-data-project-57946.CovidProject.CovidDeath` AS dea
+JOIN `my-data-project-57946.CovidProject.CovidVacccination` AS vac
+ON dea.location = vac.location
+	AND dea.date = vac.date
+WHERE dea.continent is not null 
+GROUP BY location,date, population, total_cases, total_deaths
+ORDER BY 1,2
+
+
